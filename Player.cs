@@ -11,7 +11,9 @@ public class Player
 		_currentRoom = startingRoom ?? throw new ArgumentNullException(nameof(startingRoom));
 	}
 
-	public Item? HeldItem { get; private set; }
+	private readonly List<Item> _inventory = new List<Item>();
+
+	public IReadOnlyList<Item> Inventory => _inventory.AsReadOnly();
 
 	public bool TryMove(string? direction, out string message)
 	{
@@ -35,31 +37,39 @@ public class Player
 		return true;
 	}
 
-	public bool TryTake(string? itemName, out string message)
+	public bool TryTake(string itemName, out string message)
 	{
-		string target = itemName?.Trim() ?? "";
-		if (target.Length == 0)
+		Item? item = CurrentRoom.FindItem(itemName);
+
+		if (item is null)
 		{
-			message = "Specify the item you want to take.";
+			message = $"There is no {itemName} in {CurrentRoom.Name}.";
 			return false;
 		}
 
-		Item? available = CurrentRoom.Item;
-		if (available is null || !string.Equals(available.Name, target, StringComparison.OrdinalIgnoreCase))
+		CurrentRoom.RemoveItem(item);
+		_inventory.Add(item);
+		message = $"You take the {item.Name}.";
+		return true;
+	}
+
+	public bool TryDrop(string itemName, out string message)
+	{
+		int matchIndex = _inventory.FindIndex(item =>
+			string.Equals(item.Name, itemName, StringComparison.OrdinalIgnoreCase));
+
+		if (matchIndex < 0)
 		{
-			message = $"There is no {target} in {CurrentRoom.Name}.";
+			message = $"You are not carrying {itemName}.";
 			return false;
 		}
 
-		if (HeldItem is not null)
-		{
-			message = $"You are already carrying {HeldItem.Name}.";
-			return false;
-		}
+		Item item = _inventory[matchIndex];
 
-		CurrentRoom.RemoveItem();
-		HeldItem = available;
-		message = $"You take the {available.Name}.";
+		CurrentRoom.PlaceItem(item);
+		_inventory.RemoveAt(matchIndex);
+
+		message = $"You drop the {item.Name}.";
 		return true;
 	}
 }
